@@ -49,7 +49,7 @@ import cmath
 
 # パス
 INPUT_DIR = "D:\\study\\data"
-OUTPUT_DIR = "D:\\previous_research\\new_data_csv"
+OUTPUT_DIR = "D:\\previous_research\\data_csv"
 OLYMPUS_MASK_IMG = 'olympus_mask.png'
 FUJIFILM_MASK_IMG = 'fujifilm_mask.png'
 
@@ -187,6 +187,8 @@ def main():
                 
                 # 入力画像設定
                 images = tuple(pathlib.Path(path).glob('*.png'))
+                # ファイル名の数値部分で昇順にソート
+                images = sorted(images, key=lambda x: int(x.stem))
                 write_csv(images, system, label, name, csv_path)
     
     
