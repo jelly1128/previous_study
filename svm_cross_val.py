@@ -72,13 +72,13 @@ def main():
         train_x = train_data[:, 0:16]
 
         # データの標準化処理
-        sc = StandardScaler()
-        sc.fit(train_x)
-        x_train_std = sc.transform(train_x)
+        scaler = StandardScaler()
+        scaler.fit(train_x)
+        x_train_std = scaler.transform(train_x)
         
         # 特徴量スケーリングモデル保存
-        with open(os.path.join(OUTPUT_DIR, 'split' + str(split + 1), MODEL_NAME + str(split + 1) + '.sav'), mode='wb') as fo_scale:
-            pickle.dump(sc, fo_scale)
+        with open(os.path.join(OUTPUT_DIR, 'split' + str(split + 1), MODEL_NAME + str(split + 1) + '.sav'), mode='wb') as feature_scale:
+            pickle.dump(scaler, feature_scale)
         
         
         model = SVC(kernel='linear',gamma='scale')
@@ -86,8 +86,8 @@ def main():
         model.fit(x_train_std, train_y)
         
         # モデルの保存
-        with open(os.path.join(OUTPUT_DIR, 'split' + str(split + 1), MODEL_NAME + str(split + 1) + '.pickle'), mode='wb') as fo_model:  # with構文でファイルパスとバイナリ書き込みモードを設定
-            pickle.dump(model, fo_model)  # オブジェクトをシリアライズ
+        with open(os.path.join(OUTPUT_DIR, 'split' + str(split + 1), MODEL_NAME + str(split + 1) + '.pickle'), mode='wb') as f:  # with構文でファイルパスとバイナリ書き込みモードを設定
+            pickle.dump(model, f)  # オブジェクトをシリアライズ
             
         # 学習済みモデルによる予測
         # モデルのテストデータに対する精度評価
@@ -99,7 +99,7 @@ def main():
         test_x = test_data[:, 0:16]
         
         # データの標準化処理
-        x_test_std = sc.transform(test_x)
+        x_test_std = scaler.transform(test_x)
         
         pred_test = model.predict(x_test_std)
         
