@@ -1,67 +1,101 @@
-# 特徴量16R,G,B,H
-# Hの算出
+# 色特徴量抽出
+# 
+# 画像フォルダ内の画像の色特徴量を算出し，csvファイルに出力する
+# 
+# 入力ディレクトリ構造
+# ├── input_image_folder
+# │   ├── 1
+# │   │   ├── fujifilm
+# │   │   │   ├── images
+# │   │   │   │   ├── data1_a
+# │   │   │   │   │   ├── 1.png
+# │   │   │   │   │   ├── 2.png
+#                     ...
+# │   │   │   │   ├── data1_b
+# │   │   │   │   │   ├── 1.png
+# │   │   │   │   │   ├── 2.png
+#                     ...
+# │   │   │   ├── labels
+# │   │   │   │   ├── data1_a.csv
+# │   │   │   │   ├── data1_b.csv
+#                 ...
+# │   │   ├── olympus
+# │   │   │   ├── images
+# │   │   │   ├── labels
+# │   ├── 2
+#     ...
+# 
+# 出力ディレクトリ構造
+# ├── output_image_folder
+# │   ├── 1
+# │   │   ├── fujifilm
+# │   │   │   ├── data_a.csv
+# │   │   │   ├── data_b.csv
+#                 ...
+# │   │   ├── olympus
+#         ...
+# │   ├── 2
+#     ...
 
 import os
+import pandas as pd
 import pathlib
+import csv
 import cv2
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import csv
-import cmath
 import scipy.stats as sstats
-from sklearn import preprocessing as sp
-import math
-
-WIDTH = 800
-
-def normalize_img(img):
-
-    height = img.shape[0]
-    width = img.shape[1]
-
-    center_h = int(height / 2)
-    center_w = int(width / 2)
-
-    for i in range(width):
-        blue = img.item(center_h, i, 0)
-        green = img.item(center_h, i, 1)
-        red = img.item(center_h, i, 2)
-        left = 0
-        right = width
-        if(i==0 and blue > 5 and green >5 and red > 5):
-            left = i
-
-            if (blue <= 5 and green <= 5 and red <= 5):
-                right = i
-                break
-
-        elif (blue <= 5 and green <=5 and red <= 5):
-            if (i < center_w):
-                left = i
-
-            else:
-                right = i
-                break
-
-    crop = img[0: height, left: right]
-    crop_h = crop.shape[0]
-    crop_w = crop.shape[1]
-    ratio = WIDTH / crop_w
-
-    resize_img = cv2.resize(crop, (int(crop_w * ratio), int(crop_h * ratio)))
-
-    return resize_img
+import cmath
 
 
-def analysis_hsv(path):
+# パス
+INPUT_DIR = "D:\\study\\data"
+OUTPUT_DIR = "D:\\previous_research\\new_data_csv"
+OLYMPUS_MASK_IMG = 'olympus_mask.png'
+FUJIFILM_MASK_IMG = 'fujifilm_mask.png'
+
+# cropping size (deep learning と統一)
+OLYMPUS_CROPPPING = [20, 1060, 710, 1890]
+FUJIFILM_CROPPPING = [25, 995, 330, 1590]
+
+# resize (deep learning と統一)
+IMG_SIZE = 224
+
+
+def mean_angle(angles):
+    a = np.deg2rad(angles)
+    angles_complex = np.frompyfunc(cmath.exp, 1, 1)(a * 1j)
+    mean = cmath.phase(angles_complex.sum()) % (2 * np.pi)
+    return round(np.rad2deg(mean) , 1)
+
+def std_angle(angles):
+    a = np.deg2rad(angles)
+    angles_complex = np.frompyfunc(cmath.exp, 1, 1)(a * 1j)
+    r = abs(angles_complex.sum()) / angles.size
+    std = np.sqrt(-2 * np.log(r))
+    return round(np.rad2deg(std), 2)
+
+
+def analysis_hsv(path, system):
 
     img = cv2.imread(str(path))
-    normalized = normalize_img(img)
-    crop = normalized[50: 600,  100: 700]
+    
+    # 各撮影systemのマスク画像
+    if system == 'olympus':
+        mask = cv2.imread(OLYMPUS_MASK_IMG)
+    elif system == 'fujifilm':
+        mask = cv2.imread(FUJIFILM_MASK_IMG)
+    
+    img = cv2.bitwise_and(img, mask)
+    
+    if system == 'olympus':
+        crop_img = img[OLYMPUS_CROPPPING[0] : OLYMPUS_CROPPPING[1], OLYMPUS_CROPPPING[2] : OLYMPUS_CROPPPING[3]]
+    elif system == 'fujifilm':
+        crop_img = img[FUJIFILM_CROPPPING[0] : FUJIFILM_CROPPPING[1], FUJIFILM_CROPPPING[2] : FUJIFILM_CROPPPING[3]]
+        
+    resize_img = cv2.resize(crop_img, dsize=(IMG_SIZE, IMG_SIZE))
 
     #RGB
-    r,g,b = crop[:,:,2],crop[:,:,1],crop[:,:,0]
+    r,g,b = resize_img[:,:,2], resize_img[:,:,1], resize_img[:,:,0]
     hist_r = cv2.calcHist([r], [0], None, [256], [0, 255])
     hist_g = cv2.calcHist([g], [0], None, [256], [0, 255])
     hist_b = cv2.calcHist([b], [0], None, [256], [0, 255])
@@ -85,10 +119,7 @@ def analysis_hsv(path):
     kurto_g = sstats.kurtosis(hist_g)
     kurto_b = sstats.kurtosis(hist_b)
 
-    #hsv = rgb_to_hsv(crop)
-    #img_hsv = np.uint8(hsv)
-
-    img_hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    img_hsv = cv2.cvtColor(resize_img, cv2.COLOR_BGR2HSV)
 
     h, s, v = img_hsv[:,:,0], img_hsv[:,:,1], img_hsv[:,:,2]
 
@@ -105,105 +136,36 @@ def analysis_hsv(path):
     return mean_r,std_r,skew_r,kurto_r,mean_g,std_g,skew_g,kurto_g,mean_b,std_b,skew_b,kurto_b,mean_h, std_h,skew_h,kurto_h
 
 
-def write_csv(images, label):
+def write_csv(images, system, label, name, csv_path):
     for path in images:
-        mean_r, std_r, skew_r, kurto_r, mean_g, std_g, skew_g, kurto_g, mean_b, std_b, skew_b, kurto_b, mean_h, std_h, skew_h, kurto_h  = analysis_hsv(path)
+        mean_r, std_r, skew_r, kurto_r, mean_g, std_g, skew_g, kurto_g, mean_b, std_b, skew_b, kurto_b, mean_h, std_h, skew_h, kurto_h  = analysis_hsv(path, system)
 
-
-        with open(os.path.join(OUTPUT_DIR, CSV_NAME + '.csv'), 'a',newline="") as f:
+        with open(os.path.join(csv_path, name + '.csv'), 'a',newline="") as f:
             writer = csv.writer(f)
             writer.writerow([os.path.basename(path), mean_r,std_r,skew_r[0],kurto_r[0],mean_g,std_g,skew_g[0],kurto_g[0]
                                 ,mean_b,std_b,skew_b[0],kurto_b[0],mean_h, std_h, skew_h[0],kurto_h[0], label])
 
 
-
-def rgb_to_hsv(src, ksize=3):
-    # 高さ・幅・チャンネル数を取得
-    h, w, c = src.shape
-
-    # 入力画像と同じサイズで出力画像用の配列を生成(中身は空)
-    dst = np.empty((h, w, c))
-
-    for y in range(0, h):
-        for x in range(0, w):
-            # R, G, Bの値を取得して0～1の範囲内にする
-            [b, g, r] = src[y][x] / 255.0
-            # R, G, Bの値から最大値と最小値を計算
-            mx, mn = max(r, g, b), min(r, g, b)
-            # 最大値 - 最小値
-            diff = mx - mn
-
-            # Hの値を計算
-            if mx == mn:
-                h = 0
-            elif mx == r:
-                h = 60 * ((g - b) / diff)
-            elif mx == g:
-                h = 60 * ((b - r) / diff) + 120
-            elif mx == b:
-                h = 60 * ((r - g) / diff) + 240
-            if h < 0: h = h + 360
-
-            # Sの値を計算
-            if mx != 0:
-                s = diff / mx
-            else:
-                s = 0
-
-            # Vの値を計算
-            v = mx
-
-            dst[y][x] = [h, s, v]
-
-    return dst
-
-def rgb_to_lab(src):
-    img_lab = cv2.cvtColor(src, cv2.COLOR_RGB2Lab)
-
-    img_lab = img_lab.astype(np.float)
-    img_lab[:, :, 0] *= 100 / 255
-    img_lab[:, :, 1] -= 128
-    img_lab[:, :, 2] -= 128
-    img_lab = img_lab.astype(np.int)
-
-    return img_lab
-
-def mean_angle(angles):
-    a = np.deg2rad(angles)
-    angles_complex = np.frompyfunc(cmath.exp, 1, 1)(a * 1j)
-    mean = cmath.phase(angles_complex.sum()) % (2 * np.pi)
-    return round(np.rad2deg(mean) , 1)
-
-def std_angle(angles):
-    a = np.deg2rad(angles)
-    angles_complex = np.frompyfunc(cmath.exp, 1, 1)(a * 1j)
-    r = abs(angles_complex.sum()) / angles.size
-    std = np.sqrt(-2 * np.log(r))
-    return round(np.rad2deg(std), 2)
-
-OUTPUT_DIR = "D:/previous_research/data_csv/2/fujifilm/"
-CSV_NAME = "test7_d"
-
-
-if __name__ == "__main__":
+def main():
     
-    # パス指定
-    # input_dir = 'D:/study/data/2/fujifilm/images/test7_d'
-    # 入力画像設定
-    # img = tuple(pathlib.Path(input_dir).glob('*.png'))
-    # write_csv(img)
-    # analysis_hsv(img)
+    # output folderを作成
+    if not os.path.exists(os.path.join(OUTPUT_DIR)):
+        os.mkdir(os.path.join(OUTPUT_DIR))
     
-    # data用（合同中間）
-    #
-    # D:\\study\\data に含まれるすべての画像の色特徴量を算出
-    #
-    for system in ['fujifilm', 'olympus']:
+    for folder_number in range(1, 7):
         
-        for folder_number in range(1, 7):
+        # output folderを作成
+        if not os.path.exists(os.path.join(OUTPUT_DIR, str(folder_number))):
+            os.mkdir(os.path.join(OUTPUT_DIR, str(folder_number)))
+        
+        for system in ['fujifilm', 'olympus']:
             
-            # フォルダが存在するディレクトリのパスを指定
-            folder_path = os.path.join("D:\\study\\data", str(folder_number), system, "images")
+            # output folderを作成
+            if not os.path.exists(os.path.join(OUTPUT_DIR, str(folder_number), system)):
+                os.mkdir(os.path.join(OUTPUT_DIR, str(folder_number), system))
+            
+            # 入力フォルダが存在するディレクトリのパスを指定
+            folder_path = os.path.join(INPUT_DIR, str(folder_number), system, "images")
         
             # フォルダ内のすべてのフォルダ名を取得
             folder_names = [name for name in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, name))]
@@ -211,20 +173,22 @@ if __name__ == "__main__":
             #print("-" * 10 + str(folder_number) + "_" + system + "-" * 10)
             # フォルダ名を指定して解析
             for name in folder_names:
+                
                 # パス指定
                 path = os.path.join(folder_path, name)
-                OUTPUT_DIR = os.path.join("D:\\previous_research\\data_csv", str(folder_number), system)
-                CSV_NAME = name
+                csv_path = os.path.join(OUTPUT_DIR, str(folder_number), system)
+                
                 # labelを読み込む
-                df = pd.read_csv(os.path.join("D:\\study\\data", str(folder_number), system, "labels", name + '.csv'), header=None)
-                # 一行目の数字を取得
+                df = pd.read_csv(os.path.join(INPUT_DIR, str(folder_number), system, "labels", name + '.csv'), header=None)
+                
+                # 一行目の数字(label)を取得
                 label = df[0][0]
                 print(name, label)
-                # 入力画像設定
-                img = tuple(pathlib.Path(path).glob('*.png'))
-                write_csv(img, label)
-            
                 
-            
-        
-        
+                # 入力画像設定
+                images = tuple(pathlib.Path(path).glob('*.png'))
+                write_csv(images, system, label, name, csv_path)
+    
+    
+if __name__ == '__main__':
+    main()
