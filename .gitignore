@@ -1,2 +1,5 @@
 *.sav
 *.pickle
+*.log
+*.svg
+*.png

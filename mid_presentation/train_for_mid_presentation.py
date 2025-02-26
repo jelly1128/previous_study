@@ -1,30 +1,8 @@
-# splits:
-#   split1:
-#     - "20210119093456_000001-001"
-#     - "20210531112330_000005-001"
-#     - "20211223090943_000001-002"
-#     - "20230718-102254-ES06_20230718-102749-es06-hd"
-#     - "20230802-104559-ES09_20230802-105630-es09-hd"
-
-#   split2:
-#     - "20210119093456_000001-002"
-#     - "20210629091641_000001-002"
-#     - "20211223090943_000001-003"
-#     - "20230801-125025-ES06_20230801-125615-es06-hd"
-#     - "20230803-110626-ES06_20230803-111315-es06-hd"
-
-#   split3:
-#     - "20210119093456_000002-001"
-#     - "20210630102301_000001-002"
-#     - "20220322102354_000001-002"
-#     - "20230802-095553-ES09_20230802-101030-es09-hd"
-#     - "20230803-093923-ES09_20230803-094927-es09-hd"
-
-#   split4:
-#     - "20210524100043_000001-001"
-#     - "20210531112330_000001-001"
-#     - "20211021093634_000001-001"
-#     - "20211021093634_000001-003"
+# CSVディレクトリ構造
+# ├── output_image_folder
+# │   ├── video_name_A_rgbh.csv
+# │   ├── video_name_B_rgbh.csv
+#     ...
 
 from pathlib import Path
 import pandas as pd
@@ -61,7 +39,28 @@ SPLITS_DICT = {
 }
 
 
-def dataloader(split_name):
+# ラベルの分布を確認
+def label_distribution(data: np.ndarray):
+    """
+    ラベルの分布を確認する関数
+    
+    Args:
+        data (np.ndarray): 特徴量とラベルを含む配列
+    """
+    # main_labelの列番号
+    label_column_index = NUM_FEATURES  # main_label が17列目にあると仮定(0始まり)
+
+    # ラベルの分布をdataloader内で確認
+    labels = data[:, label_column_index].astype(int)  # main_label
+    unique_labels, counts = np.unique(labels, return_counts=True)
+    print(f"\nLabel distribution:")
+    for label, count in zip(unique_labels, counts):
+        print(f"Label {label}: {count} samples")
+    print(f"Total samples: {len(labels)}")
+
+
+# splitのデータを読み込む
+def dataloader(split_name: str) -> np.ndarray:
     """
     指定されたsplitのデータを読み込む関数
     
@@ -83,42 +82,12 @@ def dataloader(split_name):
         try:
             # CSVファイルを読み込む（ヘッダーあり）
             video_data = pd.read_csv(csv_path)
-            # print(video_data.head())  # 最初の数行を表示
             
-            # 特徴量（mean_r からkurto_h まで）とラベル（main_label, sub_label）を抽出
-            features_labels = video_data.iloc[:, 1:18].values  # filenameを除く全列
-            # print(f"features_labels.dtype: {features_labels.dtype}")  # データ型を表示
-            # features_labelsの次元数を表示
-            # print(f"features_labels.shape: {features_labels.shape}")
+            # 16特徴量（mean_r からkurto_h まで）とラベル（main_label, sub_label）を抽出
+            features_labels = video_data.iloc[:, 1:NUM_FEATURES+NUM_LUBEL].values  # filenameを除く全列
 
-            # features_labels が空の場合、または1次元配列の場合、エラーとする
-            # if features_labels.size == 0 or len(features_labels.shape) == 1:
-            #     print(f"Error: features_labels is empty or 1-dimensional in {csv_path}")
-            #     continue
-
-            # NaNが含まれていないか確認
-            # if np.any(np.isnan(features_labels)):
-            #     print(f"Error: features_labels contains NaN in {csv_path}")
-            #     # NaNを含む行を出力
-            #     nan_indices = np.where(np.isnan(features_labels))
-            #     print(f"NaN indices: {nan_indices}")
-            #     print(f"NaN rows: {features_labels[nan_indices]}")
-            #     continue
-
-            # main_labelの列番号
-            label_column_index = 16  # main_label が17列目にあると仮定(0始まり)
-            
             # ラベルの分布をdataloader内で確認
-            # labels = features_labels[:, label_column_index].astype(int)  # main_label
-            # unique_labels, counts = np.unique(labels, return_counts=True)
-            # print(f"\nLabel distribution in {csv_path}:")
-            # for label, count in zip(unique_labels, counts):
-            #     print(f"Label {label}: {count} samples")
-            # print(f"Total samples: {len(labels)}")
-
-            # # 特定のラベルを持つデータのインデックスを検索
-            # specific_label = -9223372036854775808
-            # specific_label_indices = np.where(labels[:, label_column_index] == specific_label)[0]
+            # label_distribution(features_labels)
 
             if data is None:
                 data = features_labels
@@ -132,6 +101,7 @@ def dataloader(split_name):
     return data
 
 
+# 複数のsplitのデータを読み込む
 def load_multiple_splits(split_names):
     """
     複数のsplitのデータを読み込む関数
@@ -157,12 +127,15 @@ def load_multiple_splits(split_names):
 
 
 OUTPUT_DIR = "demo_train"
-CSV_DIR = "/home/tanaka/demo_data_rgbh_csv"
+CSV_DIR = "/home/tanaka/mid_presentation/previous_study/demo_data_rgbh_csv"
 # TRAIN_SPLITS = ['split1', 'split2']
 # TRAIN_SPLITS = ['split2', 'split3']
 # TRAIN_SPLITS = ['split3', 'split4']
 TRAIN_SPLITS = ['split4', 'split1']
 MODEL_NAME = f"{OUTPUT_DIR}_split4_1_svm_model"
+NUM_FEATURES = 16  # 特徴量の次元数
+NUM_LUBEL = 2  # 主クラスとサブクラス
+
 # メイン関数
 def main():
     # output folderを作成
@@ -177,18 +150,11 @@ def main():
         return
         
     # 目的変数(Y)，説明変数(X)
-    train_y = train_data[:, 16].astype(int)  # main_label
-    train_x = train_data[:, 0:16]  # 特徴量（16次元）
+    train_y = train_data[:, NUM_FEATURES].astype(int)  # main_label
+    train_x = train_data[:, 0:NUM_FEATURES]  # 特徴量（16次元）
     
-     # ラベルの分布を確認
-    unique_labels, counts = np.unique(train_y, return_counts=True)
-    print("\nLabel distribution in training data:")
-    for label, count in zip(unique_labels, counts):
-        print(f"Label {label}: {count} samples")
-    print(f"Total samples: {len(train_y)}")
-    
-    # import sys
-    # sys.exit()
+    # ラベルの分布を確認
+    # label_distribution(train_data)
     
     # データの標準化処理
     scaler = StandardScaler()

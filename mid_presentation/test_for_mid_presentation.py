@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import pickle
 from sklearn.metrics import accuracy_score, confusion_matrix
+from results_visualizer import visualize_label_timeline
 
 SPLITS_DICT = {
     'split1': ["20210119093456_000001-001",
@@ -72,11 +73,11 @@ def test(output_dir: str, csv_dir: str, model_dir: str, model_name: str, test_sp
             test_x = features_labels[:, 0:16]  # 特徴量（16次元）
 
             # テストデータのラベル分布を確認
-            unique_labels, counts = np.unique(test_y, return_counts=True)
-            print("\nLabel distribution in test data:")
-            for label, count in zip(unique_labels, counts):
-                print(f"Label {label}: {count} samples")
-            print(f"Total samples: {len(test_y)}")
+            # unique_labels, counts = np.unique(test_y, return_counts=True)
+            # print("\nLabel distribution in test data:")
+            # for label, count in zip(unique_labels, counts):
+            #     print(f"Label {label}: {count} samples")
+            # print(f"Total samples: {len(test_y)}")
 
 
         except Exception as e:
@@ -132,6 +133,11 @@ def test(output_dir: str, csv_dir: str, model_dir: str, model_name: str, test_sp
 
         results_csv_path = video_name_dir / f"{video_name}_results.csv"
         results_df.to_csv(results_csv_path, index=False)
+
+        # 予測結果の可視化
+        visualize_label_timeline(results_df['Predicted_Label'], video_name_dir, video_name, "predicted")
+        # 正解ラベルの可視化
+        visualize_label_timeline(results_df['True_Label'], video_name_dir, video_name, "ground_truth")
 
         # import sys
         # sys.exit()
@@ -203,8 +209,8 @@ def cross_test(output_dir: str, csv_dir: str, model_dir: str, model_names: list[
         
 
 def main():
-    output_dir = "demo_cross_test"  # 結果を保存するディレクトリ
-    csv_dir = "/home/tanaka/mid_presentation/previous/study/demo_data_rgbh_csv"
+    output_dir = "debug_cross_test"  # 結果を保存するディレクトリ
+    csv_dir = "/home/tanaka/mid_presentation/previous_study/demo_data_rgbh_csv"
     model_dir = "/home/tanaka/mid_presentation/previous_study/demo_train"
     # 学習済みモデル
     model_names = ["demo_train_split4_1_svm_model", "demo_train_split3_4_svm_model", "demo_train_split2_3_svm_model", "demo_train_split1_2_svm_model"]
